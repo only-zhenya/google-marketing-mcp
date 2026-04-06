@@ -567,7 +567,7 @@ server.registerPrompt(
     description: 'Оптимізація бюджетів кампаній та ставок CPC на основі даних ефективності та конверсій з GA4.',
     argsSchema: {
       campaignId: z.string().optional().describe('ID кампанії (якщо не вказано — аналіз всіх активних кампаній)'),
-      targetCpa: z.number().optional().describe('Цільова вартість конверсії (CPA) у валюті акаунту'),
+      targetCpa: z.string().optional().describe('Цільова вартість конверсії (CPA) у валюті акаунту, наприклад "100"'),
     },
   },
   async ({ campaignId, targetCpa }) => {
@@ -643,11 +643,11 @@ server.registerPrompt(
     description: 'Аудит релевантності ключових слів: виявляє нерелевантні BROAD-запити що зливають бюджет, пропонує зниження ставок або зміну типу відповідності.',
     argsSchema: {
       campaignId: z.string().optional().describe('ID кампанії для аналізу (якщо не вказано — весь акаунт)'),
-      minSpend: z.number().optional().describe('Мінімальні витрати на ключове слово для включення в аналіз (за замовчуванням 5)'),
+      minSpend: z.string().optional().describe('Мінімальні витрати на ключове слово для включення в аналіз (за замовчуванням 5)'),
     },
   },
   async ({ campaignId, minSpend }) => {
-    const spendThreshold = minSpend ?? 5;
+    const spendThreshold = minSpend ? Number(minSpend) : 5;
     const campaignFilter = campaignId ? ` з campaignId="${campaignId}"` : '';
     return {
       messages: [
@@ -823,13 +823,13 @@ server.registerPrompt(
     description: 'Швидке очищення акаунту від сміттєвих пошукових запитів що зливають бюджет без конверсій. Формує і додає мінус-слова.',
     argsSchema: {
       campaignId: z.string().optional().describe('ID кампанії (якщо не вказано — весь акаунт)'),
-      spendThreshold: z.number().optional().describe('Мінімальні витрати на запит щоб потрапити до аналізу (за замовчуванням 3)'),
-      days: z.number().optional().describe('Кількість днів для аналізу (за замовчуванням 14)'),
+      spendThreshold: z.string().optional().describe('Мінімальні витрати на запит щоб потрапити до аналізу (за замовчуванням 3)'),
+      days: z.string().optional().describe('Кількість днів для аналізу (за замовчуванням 14)'),
     },
   },
   async ({ campaignId, spendThreshold, days }) => {
-    const threshold = spendThreshold ?? 3;
-    const period = days ?? 14;
+    const threshold = spendThreshold ? Number(spendThreshold) : 3;
+    const period = days ? Number(days) : 14;
     const campaignFilter = campaignId ? ` з campaignId="${campaignId}"` : '';
     return {
       messages: [
@@ -1209,7 +1209,7 @@ server.registerPrompt(
     argsSchema: {
       siteUrl: z.string().describe('URL сайту в GSC'),
       campaignId: z.string().optional().describe('ID кампанії (якщо не вказано — весь акаунт)'),
-      monthlyBudget: z.number().optional().describe('Поточний місячний бюджет в гривнях (для розрахунку потенціалу)'),
+      monthlyBudget: z.string().optional().describe('Поточний місячний бюджет в гривнях (для розрахунку потенціалу), наприклад "50000"'),
     },
   },
   async ({ siteUrl, campaignId, monthlyBudget }) => {
