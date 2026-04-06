@@ -1,0 +1,35 @@
+{
+  "name": "google-marketing-mcp",
+  "version": "1.0.0",
+  "description": "Comprehensive marketing MCP with Google Ads, Analytics (GA4), and Search Console (GSC) tools for AI agents.",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "dev": "tsx src/main.ts",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "google-ads",
+    "google-ads-api",
+    "campaign-management",
+    "advertising"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@google-analytics/admin": "^9.0.1",
+    "@google-analytics/data": "^5.2.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "dotenv": "^16.4.7",
+    "google-ads-api": "^23.0.0",
+    "google-auth-library": "^10.6.2",
+    "googleapis": "^171.4.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
