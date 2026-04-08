@@ -1,14 +1,16 @@
 /**
  * Skills — маркетингові скіли (покрокові інструкції для LLM)
  *
- * Кожен скіл реєструється як TOOL (не prompt), тому він видимий
- * у ВСІХ MCP-клієнтах: Claude Desktop, Claude Code, LM Studio, тощо.
+ * Кожен скіл має два режими:
+ *   mode="preview"  → показує план дій у Markdown (працює в БУДЬ-ЯКОМУ клієнті)
+ *   mode="execute"  → повертає інструкції для виконання
  *
  * Як це працює:
- * 1. Користувач каже "зроби аудит" або "створи кампанію"
- * 2. LLM викликає відповідний skill tool
- * 3. Tool повертає покрокову інструкцію
- * 4. LLM виконує інструкцію, викликаючи інші tools крок за кроком
+ * 1. Користувач каже "зроби аудит"
+ * 2. LLM викликає skill з mode="preview"
+ * 3. Користувач бачить план → підтверджує
+ * 4. LLM викликає skill з mode="execute"
+ * 5. LLM виконує інструкцію, викликаючи data tools крок за кроком
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -30,7 +32,6 @@ import { registerWeeklyOptimizationSkill } from './weeklyOptimization';
 
 /**
  * Реєструє ВСІ скіли на MCP-сервері.
- * Викликай один раз при ініціалізації сервера.
  */
 export function registerAllSkills(server: McpServer): void {
   registerAccountAuditSkill(server);
@@ -48,5 +49,5 @@ export function registerAllSkills(server: McpServer): void {
   registerAdGroupDeepAuditSkill(server);
   registerWeeklyOptimizationSkill(server);
 
-  console.error(`✅ Зареєстровано 14 маркетингових скілів`);
+  console.error('✅ Зареєстровано 14 маркетингових скілів (preview + execute mode)');
 }

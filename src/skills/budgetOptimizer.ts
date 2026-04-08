@@ -4,80 +4,73 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { modeSchema, previewResult, executeResult, SkillPreview } from './helpers';
 
 export function registerBudgetOptimizerSkill(server: McpServer): void {
   server.tool(
     'skill_budget_optimizer',
-    `💰 СКІЛ: Оптимізація бюджетів кампаній та ставок CPC.
-Аналізує ефективність та конверсії з GA4, пропонує конкретні зміни бюджетів та ставок.
+    `💰 СКІЛ: Оптимізація бюджетів та ставок CPC.
+Аналізує ефективність, пропонує зміни бюджетів/ставок.
 
 КОЛИ ВИКОРИСТОВУВАТИ:
-- Клієнт каже "оптимізуй бюджет", "знизити CPA", "зменшити витрати", "підвищити ефективність"
-- При високому CPA або низьких конверсіях
-- Коли є budget limited кампанії
+- "оптимізуй бюджет", "знизити CPA", "зменшити витрати"
 
-РЕЗУЛЬТАТ: Покрокова інструкція аналізу та оптимізації бюджетів/ставок.`,
+⚡ ПОРЯДОК: спочатку mode="preview", після підтвердження — mode="execute".`,
     {
-      campaignId: z.string().optional().describe(
-        'ID кампанії (якщо не вказано — аналіз всіх активних кампаній). Отримай ID через get_campaigns.'
-      ),
-      targetCpa: z.string().optional().describe(
-        'Цільова вартість конверсії (CPA) у валюті акаунту, наприклад "100"'
-      ),
+      mode: modeSchema,
+      campaignId: z.string().optional().describe('ID кампанії. Отримай через get_campaigns.'),
+      targetCpa: z.string().optional().describe('Цільовий CPA у валюті акаунту'),
     },
-    async ({ campaignId, targetCpa }) => {
-      const cpaNote = targetCpa ? `Цільовий CPA: ${targetCpa} (валюта акаунту).` : 'Цільовий CPA не вказано — орієнтуйся на середній по акаунту.';
+    async ({ mode, campaignId, targetCpa }) => {
+      const cpaNote = targetCpa ? `Цільовий CPA: ${targetCpa}` : 'Орієнтуватись на середній';
       const campaignFilter = campaignId ? ` з campaignId="${campaignId}"` : '';
 
-      const instructions = `Ти — Senior PPC-спеціаліст з оптимізації ставок. Проведи аналіз і оптимізуй бюджети та ставки.
-${cpaNote}
+      if (mode === 'preview') {
+        const preview: SkillPreview = {
+          title: '💰 Оптимізація Бюджетів та Ставок',
+          summary: `Аналіз ефективності keywords та кампаній. ${cpaNote}.`,
+          skillName: 'skill_budget_optimizer',
+          estimatedTime: '3-4 хвилини',
+          params: { campaignId, targetCpa },
+          steps: [
+            { title: 'Інформація акаунту', tools: ['get_account_info'], description: 'Валюта' },
+            { title: 'Ключові слова', tools: ['get_keywords'], description: 'CPC, витрати, конверсії, QS' },
+            { title: 'GA4 конверсії', tools: ['get_ga4_report'], description: 'Реальний зв\'язок витрати→результат' },
+            { title: 'Бюджети', tools: ['get_campaigns', 'get_budget_utilization'], description: 'Budget limited?' },
+            { title: 'Аналіз keywords', tools: [], description: 'Класифікація: знизити/призупинити/підвищити' },
+            { title: 'Аналіз бюджетів', tools: [], description: 'Перерозподіл бюджетів' },
+            { title: 'План дій', tools: ['update_keyword_cpc', 'update_campaign_budget'], description: 'Конкретні зміни' },
+          ],
+        };
+        return previewResult(preview);
+      }
 
-ОБОВ'ЯЗКОВИЙ АЛГОРИТМ:
+      return executeResult(`Ти — Senior PPC-спеціаліст. Оптимізуй бюджети та ставки.
+${cpaNote}.
 
-**КРОК 1 — Інформація про акаунт:**
-Виклич get_account_info. Запиши валюту.
+**КРОК 1:** Виклич get_account_info. Валюта.
 
-**КРОК 2 — Завантаж ключові слова:**
-Виклич get_keywords${campaignFilter}. Для кожного запиши: текст, matchType, CPC, витрати, конверсії, Quality Score.
+**КРОК 2:** Виклич get_keywords${campaignFilter}. CPC, витрати, конверсії, QS.
 
-**КРОК 3 — Дані конверсій з GA4:**
-Виклич get_ga4_report з метриками ["conversions", "sessions", "engagementRate"] та вимірами ["sessionCampaignName"]. Це дасть реальний зв'язок витрати→результат.
+**КРОК 3:** Виклич get_ga4_report з metrics=["conversions","sessions","engagementRate"], dimensions=["sessionCampaignName"].
 
-**КРОК 4 — Дані кампаній та бюджетів:**
-Виклич get_campaigns та get_budget_utilization. Знайди budget limited кампанії.
+**КРОК 4:** Виклич get_campaigns та get_budget_utilization.
 
-**КРОК 5 — АНАЛІЗ КЛЮЧОВИХ СЛІВ (правила рішень):**
+**КРОК 5 — КЛАСИФІКАЦІЯ keywords:**
 
-Категоризуй кожне ключове слово:
+🔴 ЗНИЗИТИ CPC: QS ≤ 4 І CPC вище середнього
+🟡 ПРИЗУПИНИТИ: витрати > CPA × 3 і 0 конверсій 30+ днів
+🟢 ПІДВИЩИТИ CPC: QS ≥ 7 І CTR вище середнього І є конверсії
 
-🔴 ЗНИЗИТИ СТАВКУ (update_keyword_cpc):
-  - Quality Score ≤ 4 І CPC вище середнього
-  - Витрати > [середній CPA × 2] і 0 конверсій
+**КРОК 6 — БЮДЖЕТИ:**
+🟢 ПІДВИЩИТИ: budget limited + конверсії + CPA ≤ цільового
+🔴 ЗНИЗИТИ: 0 конверсій або CPA >> цільового
 
-🟡 ПРИЗУПИНИТИ:
-  - Витрати > [середній CPA × 3] і 0 конверсій за 30+ днів
+**КРОК 7 — ПЛАН:**
+| Keyword/Campaign | Поточне | Рекомендація | Зміна | Ефект |
+|-----------------|---------|-------------|-------|-------|
 
-🟢 ПІДВИЩИТИ СТАВКУ (update_keyword_cpc):
-  - Quality Score ≥ 7 І CTR вище середнього І є конверсії
-
-**КРОК 6 — АНАЛІЗ БЮДЖЕТІВ:**
-
-🟢 ПІДВИЩИТИ БЮДЖЕТ (update_campaign_budget):
-  - Кампанія budget limited І є конверсії і CPA ≤ цільового
-
-🔴 ЗНИЗИТИ БЮДЖЕТ (update_campaign_budget):
-  - Конверсій 0 або CPA >> цільового
-
-**КРОК 7 — ПЛАН ДІЙ:**
-| Keyword/Campaign | Поточне | Рекомендація | Зміна | Очікуваний ефект |
-|-----------------|---------|-------------|-------|-----------------|
-
-**КРОК 8 — ЗАПРОСИ ПІДТВЕРДЖЕННЯ:**
-Тільки після "так" — виклич відповідні інструменти.`;
-
-      return {
-        content: [{ type: 'text', text: instructions }],
-      };
+**КРОК 8:** Запроси підтвердження → update_keyword_cpc / update_campaign_budget.`);
     }
   );
 }

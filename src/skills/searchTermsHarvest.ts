@@ -4,67 +4,69 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { modeSchema, previewResult, executeResult, SkillPreview } from './helpers';
 
 export function registerSearchTermsHarvestSkill(server: McpServer): void {
   server.tool(
     'skill_search_terms_harvest',
-    `🧹 СКІЛ: Швидке очищення від сміттєвих пошукових запитів.
-Знаходить запити що зливають бюджет без конверсій, формує і додає мінус-слова.
+    `🧹 СКІЛ: Очищення від сміттєвих пошукових запитів.
+Знаходить запити без конверсій, формує мінус-слова.
 
 КОЛИ ВИКОРИСТОВУВАТИ:
-- Клієнт каже "почисти запити", "багато сміття", "додай мінус-слова", "злив бюджету"
-- При регулярній оптимізації (раз на 1-2 тижні)
-- Коли є підозра на нерелевантний трафік
+- "почисти запити", "багато сміття", "додай мінус-слова"
 
-РЕЗУЛЬТАТ: Покрокова інструкція збору та блокування сміттєвих запитів.`,
+⚡ ПОРЯДОК: спочатку mode="preview", після підтвердження — mode="execute".`,
     {
-      campaignId: z.string().optional().describe(
-        'ID кампанії (якщо не вказано — весь акаунт). Отримай ID через get_campaigns.'
-      ),
-      spendThreshold: z.string().optional().describe(
-        'Мінімальні витрати на запит щоб потрапити до аналізу (за замовчуванням 3)'
-      ),
-      days: z.string().optional().describe(
-        'Кількість днів для аналізу (за замовчуванням 14)'
-      ),
+      mode: modeSchema,
+      campaignId: z.string().optional().describe('ID кампанії. Отримай через get_campaigns.'),
+      spendThreshold: z.string().optional().describe('Мін. витрати на запит (за замовч. 3)'),
+      days: z.string().optional().describe('Кількість днів (за замовч. 14)'),
     },
-    async ({ campaignId, spendThreshold, days }) => {
+    async ({ mode, campaignId, spendThreshold, days }) => {
       const threshold = spendThreshold ? Number(spendThreshold) : 3;
       const period = days ? Number(days) : 14;
       const campaignFilter = campaignId ? ` з campaignId="${campaignId}"` : '';
 
-      const instructions = `Ти — Senior PPC-спеціаліст. Проведи HARVEST (збір і очищення) пошукових запитів за останні ${period} днів.
-Поріг витрат для аналізу: ${threshold} (валюта акаунту).
+      if (mode === 'preview') {
+        const preview: SkillPreview = {
+          title: '🧹 Harvest Сміттєвих Запитів',
+          summary: `Аналіз search terms за ${period} днів. Поріг: ${threshold}.`,
+          skillName: 'skill_search_terms_harvest',
+          estimatedTime: '2-3 хвилини',
+          params: { campaignId, spendThreshold: String(threshold), days: String(period) },
+          steps: [
+            { title: 'Інформація акаунту', tools: ['get_account_info'], description: 'Валюта' },
+            { title: 'Пошукові запити', tools: ['get_search_terms'], description: 'Топ-500' },
+            { title: 'Поточні мінус-слова', tools: ['get_negative_keywords'], description: 'Щоб не дублювати' },
+            { title: 'Фільтрація сміття', tools: [], description: `Витрати > ${threshold}, 0 конверсій` },
+            { title: 'Пріоритизація', tools: [], description: '🔴 критично → 🟠 важливо → 🟡 увага' },
+            { title: 'Додавання мінус-слів', tools: ['add_negative_keywords'], description: 'Блокування сміття' },
+          ],
+        };
+        return previewResult(preview);
+      }
 
-ОБОВ'ЯЗКОВИЙ АЛГОРИТМ:
+      return executeResult(`Ти — Senior PPC-спеціаліст. HARVEST пошукових запитів за ${period} днів.
+Поріг: ${threshold}.
 
-**КРОК 1 — Інформація про акаунт:**
-Виклич get_account_info.
-
-**КРОК 2 — Завантаж пошукові запити:**
-Виклич get_search_terms${campaignFilter} з limit=500.
-
-**КРОК 3 — Завантаж поточні мінус-слова (щоб не дублювати):**
-Виклич get_negative_keywords${campaignFilter}.
+**КРОК 1:** Виклич get_account_info.
+**КРОК 2:** Виклич get_search_terms${campaignFilter} з limit=500.
+**КРОК 3:** Виклич get_negative_keywords${campaignFilter}.
 
 **КРОК 4 — ФІЛЬТРАЦІЯ:**
-Знайди запити де витрати > ${threshold} та конверсій = 0 та ще НЕ є мінус-словом.
-Категорії сміття: "як", "що таке", "безкоштовно", "своїми руками", "відео", "реферат", "скачати", "DIY"
+Запити де витрати > ${threshold} та конверсій = 0 та НЕ є мінус-словом.
+Категорії: "як", "що таке", "безкоштовно", "своїми руками", "відео", "реферат", "скачати"
 
 **КРОК 5 — ПРІОРИТИЗАЦІЯ:**
-🔴 КРИТИЧНО (витрати > ${threshold * 5}): негайно в мінус
-🟠 ВАЖЛИВО (витрати ${threshold * 2}-${threshold * 5})
-🟡 УВАГА (витрати ${threshold}-${threshold * 2})
+🔴 КРИТИЧНО (витрати > ${threshold * 5}): негайно
+🟠 ВАЖЛИВО (${threshold * 2}-${threshold * 5})
+🟡 УВАГА (${threshold}-${threshold * 2})
 
 **КРОК 6 — ЗВІТ:**
 | Запит | Витрати | Кліки | Категорія | Рекомендація |
-Потенційна місячна економія: ~X грн
+Потенційна економія: ~X/міс
 
-**КРОК 7 — ПІДТВЕРДЖЕННЯ → add_negative_keywords**`;
-
-      return {
-        content: [{ type: 'text', text: instructions }],
-      };
+**КРОК 7:** Підтвердження → add_negative_keywords`);
     }
   );
 }

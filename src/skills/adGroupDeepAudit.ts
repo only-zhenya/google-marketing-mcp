@@ -4,64 +4,63 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { modeSchema, previewResult, executeResult, SkillPreview } from './helpers';
 
 export function registerAdGroupDeepAuditSkill(server: McpServer): void {
   server.tool(
     'skill_ad_group_deep_audit',
     `🔎 СКІЛ: Глибокий аудит групи оголошень.
-Аналіз заголовків/описів за психологічними формулами, відповідність ключовим словам, A/B порівняння.
+Заголовки/описи за психологічними формулами, відповідність keywords, A/B порівняння.
 
 КОЛИ ВИКОРИСТОВУВАТИ:
-- Клієнт каже "перевір групу X", "покращ рекламу в групі"
-- Для A/B аналізу оголошень всередині групи
-- Коли група має низький CTR або QS
+- "перевір групу X", "покращ рекламу в групі"
 
-РЕЗУЛЬТАТ: Покрокова інструкція глибокого аудиту групи з генерацією нових оголошень.`,
+⚡ ПОРЯДОК: спочатку mode="preview", після підтвердження — mode="execute".`,
     {
-      adGroupId: z.string().describe(
-        'ID групи оголошень для аудиту. Отримай через get_ad_groups.'
-      ),
-      niche: z.string().optional().describe(
-        'Ніша бізнесу (наприклад: "юридичні послуги", "інтернет-магазин меблів")'
-      ),
+      mode: modeSchema,
+      adGroupId: z.string().describe('ID групи оголошень. Отримай через get_ad_groups.'),
+      niche: z.string().optional().describe('Ніша бізнесу (напр. "юридичні послуги")'),
     },
-    async ({ adGroupId, niche }) => {
-      const nicheNote = niche ? `Ніша: "${niche}".` : 'Визнач нішу з контексту keywords.';
+    async ({ mode, adGroupId, niche }) => {
+      const nicheNote = niche ? `Ніша: "${niche}".` : 'Визнач нішу з контексту.';
 
-      const instructions = `Ти — Senior PPC-копірайтер. ГЛИБОКИЙ АУДИТ групи оголошень ID: ${adGroupId}.
+      if (mode === 'preview') {
+        const preview: SkillPreview = {
+          title: '🔎 Глибокий Аудит Групи Оголошень',
+          summary: `Аудит групи ${adGroupId}: headlines/descriptions, keyword входження, A/B. ${nicheNote}`,
+          skillName: 'skill_ad_group_deep_audit',
+          estimatedTime: '3-4 хвилини',
+          params: { adGroupId, niche },
+          steps: [
+            { title: 'Оголошення', tools: ['get_ads'], description: 'Всі RSA в групі' },
+            { title: 'Keywords', tools: ['get_keywords'], description: 'Ключові слова групи' },
+            { title: 'Search terms', tools: ['get_search_terms'], description: 'Пошукові запити' },
+            { title: 'Аналіз заголовків', tools: [], description: '10 критеріїв якості' },
+            { title: 'Аналіз описів', tools: [], description: '7 критеріїв' },
+            { title: 'Психо-сегменти', tools: [], description: 'Ціна, якість, швидкість, проблема' },
+            { title: 'A/B порівняння', tools: [], description: 'Якщо > 1 оголошення' },
+            { title: 'Нові headlines', tools: ['create_rsa_ad'], description: 'Генерація + публікація' },
+          ],
+        };
+        return previewResult(preview);
+      }
+
+      return executeResult(`Ти — Senior PPC-копірайтер. ГЛИБОКИЙ АУДИТ групи ${adGroupId}.
 ${nicheNote}
 
-ОБОВ'ЯЗКОВИЙ АЛГОРИТМ:
+**КРОК 1:** Виклич get_ads з adGroupId="${adGroupId}".
+**КРОК 2:** Виклич get_keywords, відфільтруй по adGroupId="${adGroupId}".
+**КРОК 3:** Виклич get_search_terms, відфільтруй по adGroupId="${adGroupId}".
 
-**КРОК 1 — Оголошення:**
-Виклич get_ads з adGroupId="${adGroupId}".
+**КРОК 4 — ЗАГОЛОВКИ (10 критеріїв):**
+1. Входження keyword 2. Конкретність (цифри) 3. USP
+4. Емоційний тригер 5. CTA 6. Довжина (25-30)
+7. Різноманіття 8. Локальний сигнал 9. Числа 10. Відповідність LP
 
-**КРОК 2 — Keywords:**
-Виклич get_keywords та відфільтруй по adGroupId="${adGroupId}".
-
-**КРОК 3 — Search terms:**
-Виклич get_search_terms та відфільтруй по adGroupId="${adGroupId}".
-
-**КРОК 4 — АНАЛІЗ ЗАГОЛОВКІВ (10 критеріїв):**
-1. Входження ключового слова
-2. Конкретність (цифри/факти)
-3. USP
-4. Емоційний тригер
-5. CTA
-6. Довжина (25-30 символів)
-7. Різноманіття типів
-8. Локальний сигнал
-9. Числа та дані
-10. Відповідність landing page
-
-**КРОК 5 — АНАЛІЗ ОПИСІВ (7 критеріїв)**
-**КРОК 6 — Покриття психологічних сегментів** (ціна, якість, швидкість, проблема)
-**КРОК 7 — A/B порівняння** якщо > 1 оголошення
-**КРОК 8 — ЗВІТ + нові headlines/descriptions + підтвердження create_rsa_ad.**`;
-
-      return {
-        content: [{ type: 'text', text: instructions }],
-      };
+**КРОК 5 — ОПИСИ (7 критеріїв)**
+**КРОК 6 — Покриття сегментів:** ціна, якість, швидкість, проблема
+**КРОК 7 — A/B порівняння** (якщо > 1 оголошення)
+**КРОК 8:** Звіт + нові headlines/descriptions + підтвердження create_rsa_ad.`);
     }
   );
 }

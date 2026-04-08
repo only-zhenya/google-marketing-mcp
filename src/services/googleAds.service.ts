@@ -836,8 +836,8 @@ export class GoogleAdsService {
           text: idea.text || '',
           avgMonthlySearches: Number(idea.keyword_idea_metrics?.avg_monthly_searches || 0),
           competition: this.enumToString(enums.KeywordPlanCompetitionLevel, idea.keyword_idea_metrics?.competition || 0),
-          lowTopOfPageBidMicros: idea.keyword_idea_metrics?.low_top_of_page_bid_micros,
-          highTopOfPageBidMicros: idea.keyword_idea_metrics?.high_top_of_page_bid_micros,
+          lowTopOfPageBidMicros: Number(idea.keyword_idea_metrics?.low_top_of_page_bid_micros || 0),
+          highTopOfPageBidMicros: Number(idea.keyword_idea_metrics?.high_top_of_page_bid_micros || 0),
         };
       });
 

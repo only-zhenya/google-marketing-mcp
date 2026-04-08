@@ -4,79 +4,69 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { modeSchema, previewResult, executeResult, SkillPreview } from './helpers';
 
 export function registerKeywordRelevanceSkill(server: McpServer): void {
   server.tool(
     'skill_keyword_relevance_audit',
     `🔑 СКІЛ: Аудит релевантності ключових слів.
-Виявляє нерелевантні BROAD-запити що зливають бюджет, пропонує зниження ставок або зміну типу відповідності.
+Виявляє нерелевантні BROAD-запити, пропонує зниження ставок або зміну match type.
 
 КОЛИ ВИКОРИСТОВУВАТИ:
-- Клієнт каже "перевір ключові слова", "чому дорогі кліки", "нерелевантний трафік"
-- При високому bounce rate або низькому Quality Score
-- Коли багато витрат без конверсій
+- "перевір ключові слова", "чому дорогі кліки", "нерелевантний трафік"
 
-РЕЗУЛЬТАТ: Покрокова інструкція аудиту keywords з класифікацією та планом дій.`,
+⚡ ПОРЯДОК: спочатку mode="preview", після підтвердження — mode="execute".`,
     {
-      campaignId: z.string().optional().describe(
-        'ID кампанії для аналізу (якщо не вказано — весь акаунт). Отримай ID через get_campaigns.'
-      ),
-      minSpend: z.string().optional().describe(
-        'Мінімальні витрати на ключове слово для включення в аналіз (за замовчуванням 5)'
-      ),
+      mode: modeSchema,
+      campaignId: z.string().optional().describe('ID кампанії. Отримай через get_campaigns.'),
+      minSpend: z.string().optional().describe('Мін. витрати на keyword для аналізу (за замовч. 5)'),
     },
-    async ({ campaignId, minSpend }) => {
+    async ({ mode, campaignId, minSpend }) => {
       const spendThreshold = minSpend ? Number(minSpend) : 5;
       const campaignFilter = campaignId ? ` з campaignId="${campaignId}"` : '';
 
-      const instructions = `Ти — Senior PPC-спеціаліст. Проведи ДЕТАЛЬНИЙ АУДИТ РЕЛЕВАНТНОСТІ ключових слів.
-Мінімальний поріг витрат для аналізу: ${spendThreshold} (валюта акаунту).
+      if (mode === 'preview') {
+        const preview: SkillPreview = {
+          title: '🔑 Аудит Релевантності Ключових Слів',
+          summary: `Аналіз keywords з витратами > ${spendThreshold}. Класифікація та план дій.`,
+          skillName: 'skill_keyword_relevance_audit',
+          estimatedTime: '2-3 хвилини',
+          params: { campaignId, minSpend: String(spendThreshold) },
+          steps: [
+            { title: 'Інформація акаунту', tools: ['get_account_info'], description: 'Базові дані' },
+            { title: 'Ключові слова', tools: ['get_keywords'], description: 'Всі keywords' },
+            { title: 'Пошукові запити', tools: ['get_search_terms'], description: 'Топ-500 search terms' },
+            { title: 'Quality Score', tools: ['get_quality_score_report'], description: 'QS по keywords' },
+            { title: 'Класифікація', tools: [], description: '🔴 критичні → 🟠 проблемні → 🟡 увага' },
+            { title: 'Звіт + мінус-слова', tools: ['update_keyword_cpc', 'add_negative_keywords'], description: 'Конкретні дії' },
+          ],
+        };
+        return previewResult(preview);
+      }
 
-ОБОВ'ЯЗКОВИЙ АЛГОРИТМ:
+      return executeResult(`Ти — Senior PPC-спеціаліст. АУДИТ РЕЛЕВАНТНОСТІ keywords.
+Поріг витрат: ${spendThreshold}.
 
-**КРОК 1 — Інформація про акаунт:**
-Виклич get_account_info.
-
-**КРОК 2 — Завантаж всі ключові слова:**
-Виклич get_keywords${campaignFilter}.
-
-**КРОК 3 — Завантаж пошукові запити:**
-Виклич get_search_terms${campaignFilter} з limit=500.
-
-**КРОК 4 — Quality Score:**
-Виклич get_quality_score_report${campaignFilter}.
+**КРОК 1:** Виклич get_account_info.
+**КРОК 2:** Виклич get_keywords${campaignFilter}.
+**КРОК 3:** Виклич get_search_terms${campaignFilter} з limit=500.
+**КРОК 4:** Виклич get_quality_score_report${campaignFilter}.
 
 **КРОК 5 — КЛАСИФІКАЦІЯ:**
-
-🔴 КРИТИЧНО — BROAD match + нерелевантні запити:
-  → ДІЯ: знизити CPC на 30-50% (update_keyword_cpc) АБО видалити
-
-🟠 ПРОБЛЕМНЕ:
-  - cost > [середній CPA] і conversions = 0 за 14+ днів
-  → ДІЯ: знизити CPC на 50%
-
-🟡 УВАГА — сміттєві search terms:
-  → ДІЯ: додати в мінус-слова (add_negative_keywords)
+🔴 КРИТИЧНО — BROAD + нерелевантні запити → знизити CPC 30-50%
+🟠 ПРОБЛЕМНЕ — cost > CPA і 0 конверсій за 14+ днів → знизити CPC 50%
+🟡 УВАГА — сміттєві search terms → add_negative_keywords
 
 **КРОК 6 — ЗВІТ:**
----
-## Аудит релевантності — [назва акаунту]
-
-### Критичні проблеми
 | Keyword | Match Type | Витрати | Конверсії | QS | Дія |
 |---------|-----------|---------|-----------|-----|-----|
 
 ### Мінус-слова для додавання
 [готовий список]
 
-### Потенційна економія: X грн/міс
----
+### Потенційна економія: X/міс
 
-Запроси підтвердження і виклич інструменти.`;
-
-      return {
-        content: [{ type: 'text', text: instructions }],
-      };
+Запроси підтвердження.`);
     }
   );
 }

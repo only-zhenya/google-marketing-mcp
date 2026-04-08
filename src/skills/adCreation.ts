@@ -4,89 +4,81 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { modeSchema, previewResult, executeResult, SkillPreview } from './helpers';
 
 export function registerAdCreationSkill(server: McpServer): void {
   server.tool(
     'skill_ad_creation',
     `📝 СКІЛ: Генерація та запуск Responsive Search Ads (RSA).
-Створює оголошення за формулами AIDA та CTR-магнітів з обов'язковим підтвердженням перед публікацією.
+Створює оголошення за формулами AIDA та CTR-магнітів.
 
 КОЛИ ВИКОРИСТОВУВАТИ:
 - Клієнт каже "створи оголошення", "напиши рекламу", "потрібна нова реклама"
-- Після створення групи оголошень — потрібно наповнити RSA
 
 ⚠️ ОБОВ'ЯЗКОВО потрібен реальний URL сайту клієнта!
-
-РЕЗУЛЬТАТ: Покрокова інструкція для створення ефективного RSA з реальним URL.`,
+⚡ ПОРЯДОК: спочатку mode="preview", після підтвердження — mode="execute".`,
     {
-      adGroupId: z.string().describe(
-        'ID групи оголошень куди додавати рекламу. Отримай через get_ad_groups.'
-      ),
-      product: z.string().describe(
-        'Продукт або послуга (наприклад: "юридичні послуги Київ", "натяжні стелі")'
-      ),
-      finalUrl: z.string().url().describe(
-        '⚠️ РЕАЛЬНИЙ URL посадкової сторінки сайту клієнта! Наприклад: "https://example.com/services". НІКОЛИ не використовуй вигадані URL!'
-      ),
-      usp: z.string().optional().describe(
-        'Унікальна торгова пропозиція / конкурентні переваги (опціонально)'
-      ),
-      targetAudience: z.string().optional().describe(
-        'Цільова аудиторія (наприклад: "власники бізнесу", "молоді сім\'ї"). Допомагає підібрати тон тексту.'
-      ),
-      language: z.string().optional().describe(
-        'Мова оголошень: "uk" — українська (за замовчуванням), "ru" — російська, "en" — англійська.'
-      ),
+      mode: modeSchema,
+      adGroupId: z.string().describe('ID групи оголошень. Отримай через get_ad_groups.'),
+      product: z.string().describe('Продукт або послуга (наприклад: "юридичні послуги Київ")'),
+      finalUrl: z.string().url().describe('⚠️ РЕАЛЬНИЙ URL посадкової сторінки!'),
+      usp: z.string().optional().describe('Унікальна торгова пропозиція'),
+      targetAudience: z.string().optional().describe('Цільова аудиторія'),
+      language: z.string().optional().describe('Мова: "uk" (за замовч.), "ru", "en"'),
     },
-    async ({ adGroupId, product, finalUrl, usp, targetAudience, language }) => {
-      const uspNote = usp ? `\nКонкурентні переваги клієнта: ${usp}` : '';
-      const audienceNote = targetAudience ? `\nЦільова аудиторія: ${targetAudience}` : '';
+    async ({ mode, adGroupId, product, finalUrl, usp, targetAudience, language }) => {
       const lang = language || 'uk';
 
-      const instructions = `Ти — Senior PPC-копірайтер. Створи та запусти RSA-оголошення для групи ${adGroupId}.
-Продукт/послуга: ${product}
-Посадкова сторінка: ${finalUrl}
-Мова оголошень: ${lang}${uspNote}${audienceNote}
+      if (mode === 'preview') {
+        const preview: SkillPreview = {
+          title: '📝 Генерація RSA Оголошень',
+          summary: `Створення RSA для "${product}" → ${finalUrl}. Мова: ${lang}.`,
+          skillName: 'skill_ad_creation',
+          estimatedTime: '2-3 хвилини',
+          params: { adGroupId, product, finalUrl, usp, targetAudience, language: lang },
+          steps: [
+            { title: 'Дослідження ключових слів', tools: ['generate_keyword_ideas'], description: 'Топ-10 за обсягом пошуку' },
+            { title: 'Аналіз поточних оголошень', tools: ['get_ads'], description: 'Перевірка існуючих ads' },
+            { title: 'Генерація 7+ заголовків', tools: [], description: 'AIDA, Pain+Benefit, Proof формули' },
+            { title: 'Генерація 4+ описів', tools: [], description: 'CTA + конкурентні переваги' },
+            { title: 'Показ результату', tools: [], description: 'Таблиця headlines + descriptions' },
+            { title: 'Підтвердження → публікація', tools: ['create_rsa_ad'], description: `finalUrl = ${finalUrl}` },
+          ],
+        };
+        return previewResult(preview);
+      }
 
-⚠️ КРИТИЧНО ВАЖЛИВО: finalUrl ПОВИНЕН бути "${finalUrl}" — РЕАЛЬНИЙ URL клієнта! НІКОЛИ не змінюй його на інший!
+      const uspNote = usp ? `\nКонкурентні переваги: ${usp}` : '';
+      const audienceNote = targetAudience ? `\nЦільова аудиторія: ${targetAudience}` : '';
 
-ОБОВ'ЯЗКОВИЙ АЛГОРИТМ:
+      return executeResult(`Ти — Senior PPC-копірайтер. Створи RSA-оголошення для групи ${adGroupId}.
+Продукт: ${product}
+Посадкова: ${finalUrl}
+Мова: ${lang}${uspNote}${audienceNote}
 
-**КРОК 1 — Дослідження ключових слів:**
-Виклич generate_keyword_ideas з seed keywords пов'язаними з "${product}". Запиши топ-10 за обсягом пошуку — вони мають бути в заголовках.
+⚠️ finalUrl ПОВИНЕН бути "${finalUrl}" — НІКОЛИ не змінюй!
 
-**КРОК 2 — Аналіз поточних оголошень:**
-Виклич get_ads з adGroupId="${adGroupId}". Вивчи що вже є, щоб не дублювати.
+**КРОК 1 — Ключові слова:**
+Виклич generate_keyword_ideas з seed keywords для "${product}". Топ-10 за обсягом.
 
-**КРОК 3 — Генерація заголовків (Headlines):**
-Напиши МІНІМУМ 7 унікальних заголовків до 30 символів кожен.
-Правила:
-- Мінімум 3 заголовки з входженням ключових слів
-- Мінімум 2 заголовки з числами або цифрами (ціни, терміни, гарантії)
-- Мінімум 1 заголовок з CTA ("Замовте зараз", "Безкоштовна консультація")
-- Формули: AIDA (Увага→Інтерес→Бажання→Дія), Pain+Benefit, Proof
+**КРОК 2 — Поточні оголошення:**
+Виклич get_ads з adGroupId="${adGroupId}".
 
-**КРОК 4 — Генерація описів (Descriptions):**
-Напиши МІНІМУМ 4 унікальних описи до 90 символів кожен.
-Правила:
-- Кожен опис закінчується CTA
-- Включай конкретні переваги та факти
-- Різні кути: вигода, гарантія, термін, соціальний доказ
+**КРОК 3 — Headlines (7+ шт, до 30 символів):**
+- 3+ з ключовими словами
+- 2+ з числами/цифрами
+- 1+ з CTA
+- Формули: AIDA, Pain+Benefit, Proof
 
-**КРОК 5 — ПОКАЖИ РЕЗУЛЬТАТ КОРИСТУВАЧЕВІ:**
-Відобрази всі заголовки та описи у форматі таблиці. Поясни чому кожен ефективний.
+**КРОК 4 — Descriptions (4+ шт, до 90 символів):**
+- Кожен з CTA
+- Різні кути: вигода, гарантія, термін, доказ
 
-**КРОК 6 — ОБОВ'ЯЗКОВО ЗАПРОСИ ПІДТВЕРДЖЕННЯ:**
-Запитай: "Чи підтверджуєте публікацію цих оголошень? (так/ні/змінити [що саме])"
+**КРОК 5 — Покажи таблицю і поясни ефективність кожного.**
 
-**КРОК 7 — Тільки після підтвердження "так":**
-Виклич create_rsa_ad з adGroupId="${adGroupId}", затвердженими headlines, descriptions та finalUrl="${finalUrl}".
-⚠️ ОБОВ'ЯЗКОВО використовуй finalUrl="${finalUrl}" — ніякий інший URL!
-Повідом про результат.`;
+**КРОК 6 — Запитай:** "Підтверджуєте публікацію? (так/ні/змінити)"
 
-      return {
-        content: [{ type: 'text', text: instructions }],
-      };
+**КРОК 7 — Після "так":** create_rsa_ad з adGroupId="${adGroupId}", finalUrl="${finalUrl}".`);
     }
   );
 }

@@ -4,74 +4,68 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { modeSchema, previewResult, executeResult, SkillPreview } from './helpers';
 
 export function registerAdCopyReviewSkill(server: McpServer): void {
   server.tool(
     'skill_ad_copy_review',
     `📊 СКІЛ: Аналіз якості текстів оголошень.
-Порівнює CTR та конверсії між оголошеннями, виявляє слабкі тексти, пропонує паузу або переписування.
+Порівнює CTR та конверсії, виявляє слабкі тексти, пропонує паузу або переписування.
 
 КОЛИ ВИКОРИСТОВУВАТИ:
-- Клієнт каже "перевір оголошення", "чому низький CTR", "покращ тексти реклами"
-- При A/B тестуванні оголошень
-- Коли CTR нижче 3%
+- "перевір оголошення", "чому низький CTR", "покращ тексти"
 
-РЕЗУЛЬТАТ: Покрокова інструкція аудиту оголошень з рекомендаціями.`,
+⚡ ПОРЯДОК: спочатку mode="preview", після підтвердження — mode="execute".`,
     {
-      adGroupId: z.string().optional().describe(
-        'ID групи оголошень (якщо не вказано — аналіз всіх груп). Отримай ID через get_ad_groups.'
-      ),
-      campaignId: z.string().optional().describe(
-        'ID кампанії для фільтрації. Отримай через get_campaigns.'
-      ),
+      mode: modeSchema,
+      adGroupId: z.string().optional().describe('ID групи оголошень. Отримай через get_ad_groups.'),
+      campaignId: z.string().optional().describe('ID кампанії. Отримай через get_campaigns.'),
     },
-    async ({ adGroupId, campaignId }) => {
+    async ({ mode, adGroupId, campaignId }) => {
       const adGroupFilter = adGroupId ? ` з adGroupId="${adGroupId}"` : '';
-      const adGroupNote = adGroupId ? `Фокус на групі оголошень ID: ${adGroupId}.` : 'Аналізуй всі активні групи оголошень.';
 
-      const instructions = `Ти — Senior PPC-копірайтер та аналітик. Проведи АУДИТ ЯКОСТІ ОГОЛОШЕНЬ.
-${adGroupNote}
+      if (mode === 'preview') {
+        const preview: SkillPreview = {
+          title: '📊 Аналіз Якості Оголошень',
+          summary: `Аудит текстів RSA: входження keywords, CTA, числа, CTR порівняння.`,
+          skillName: 'skill_ad_copy_review',
+          estimatedTime: '2-3 хвилини',
+          params: { adGroupId, campaignId },
+          steps: [
+            { title: 'Завантаж оголошення', tools: ['get_ads'], description: 'Всі RSA' },
+            { title: 'Групи оголошень', tools: ['get_ad_groups'], description: 'Контекст груп' },
+            { title: 'Keywords', tools: ['get_keywords'], description: 'Для перевірки входжень' },
+            { title: 'Аналіз якості', tools: [], description: 'Keyword insertion, CTA, числа, CTR' },
+            { title: 'Класифікація', tools: [], description: '🔴 паузувати → 🟠 переписати → 🟢 залишити' },
+            { title: 'Рекомендації', tools: ['update_ad_status'], description: 'Пауза слабких ads' },
+          ],
+        };
+        return previewResult(preview);
+      }
 
-ОБОВ'ЯЗКОВИЙ АЛГОРИТМ:
+      return executeResult(`Ти — Senior PPC-копірайтер. АУДИТ ЯКОСТІ ОГОЛОШЕНЬ.
+${adGroupId ? `Фокус: група ${adGroupId}.` : 'Всі активні групи.'}
 
-**КРОК 1 — Завантаж оголошення:**
-Виклич get_ads${adGroupFilter}${campaignId ? ` або з campaignId="${campaignId}"` : ''}.
+**КРОК 1:** Виклич get_ads${adGroupFilter}${campaignId ? ` або з campaignId="${campaignId}"` : ''}.
+**КРОК 2:** Виклич get_ad_groups${campaignId ? ` з campaignId="${campaignId}"` : ''}.
+**КРОК 3:** Виклич get_keywords${campaignId ? ` з campaignId="${campaignId}"` : ''}.
 
-**КРОК 2 — Завантаж групи оголошень для контексту:**
-Виклич get_ad_groups${campaignId ? ` з campaignId="${campaignId}"` : ''}.
-
-**КРОК 3 — Завантаж ключові слова для перевірки входжень:**
-Виклич get_keywords${campaignId ? ` з campaignId="${campaignId}"` : ''}.
-
-**КРОК 4 — АНАЛІЗ:**
-
-📝 ЯКІСТЬ ТЕКСТУ (для кожного оголошення):
-  □ Є входження ключового слова в заголовку?
-  □ Є конкретна цифра/факт?
-  □ Є чіткий CTA в описі?
-  □ Заголовки не повторюють один одного?
+**КРОК 4 — ЯКІСТЬ ТЕКСТУ (для кожного):**
+□ Входження ключового слова в заголовку?
+□ Конкретна цифра/факт?
+□ Чіткий CTA в описі?
+□ Заголовки не повторюються?
 
 📊 ПЕРФОМАНС:
-  □ CTR вище або нижче середнього по групі?
-  □ Є конверсії?
+□ CTR вище/нижче середнього?
+□ Є конверсії?
 
 **КРОК 5 — КЛАСИФІКАЦІЯ:**
+🔴 ПАУЗУВАТИ: CTR < 50% від середнього / 0 конверсій
+🟠 ПЕРЕПИСАТИ: відсутній CTA або keywords
+🟢 ЗАЛИШИТИ: топ-перфомер
 
-🔴 ПАУЗУВАТИ (update_ad_status → PAUSED):
-  - CTR < 50% від середнього по групі
-  - 0 конверсій при значних витратах
-
-🟠 ПЕРЕПИСАТИ (конкретні рекомендації):
-  - Відсутній CTA або ключові слова
-
-🟢 ЗАЛИШИТИ — топ-перфомер
-
-**КРОК 6 — ЗВІТ + ПІДТВЕРДЖЕННЯ:**
-Покажи звіт з конкретними рекомендаціями і запитай підтвердження.`;
-
-      return {
-        content: [{ type: 'text', text: instructions }],
-      };
+**КРОК 6:** Покажи звіт + запитай підтвердження.`);
     }
   );
 }

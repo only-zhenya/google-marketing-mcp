@@ -4,103 +4,92 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { modeSchema, previewResult, executeResult, SkillPreview } from './helpers';
 
 export function registerCreateCampaignFullSkill(server: McpServer): void {
   server.tool(
     'skill_create_campaign_full',
-    `🚀 СКІЛ: Створення повної структури рекламної кампанії з нуля.
-Кампанія → групи оголошень → ключові слова → RSA оголошення. Покроковий процес з підтвердженнями.
+    `🚀 СКІЛ: Створення повної рекламної кампанії з нуля.
+Кампанія → групи оголошень → ключові слова → RSA оголошення.
 
 КОЛИ ВИКОРИСТОВУВАТИ:
 - Клієнт каже "створи кампанію", "запусти рекламу", "потрібна нова кампанія"
-- Коли потрібно створити кампанію від початку до кінця
 
-⚠️ ОБОВ'ЯЗКОВО потрібен реальний URL сайту клієнта та бюджет!
-
-РЕЗУЛЬТАТ: Покрокова інструкція створення повної структури кампанії.`,
+⚠️ ОБОВ'ЯЗКОВО потрібен URL сайту та бюджет!
+⚡ ПОРЯДОК: спочатку mode="preview", після підтвердження — mode="execute".`,
     {
-      businessName: z.string().describe(
-        'Назва бізнесу або бренду (наприклад: "DocService", "МайстерСтеля")'
-      ),
-      product: z.string().describe(
-        'Що рекламуємо — продукт або послуга (наприклад: "юридичні послуги", "натяжні стелі", "доставка піци")'
-      ),
-      websiteUrl: z.string().url().describe(
-        '⚠️ РЕАЛЬНИЙ URL сайту клієнта (наприклад: "https://docservice.pro", "https://myshop.ua")'
-      ),
-      dailyBudget: z.string().describe(
-        'Денний бюджет у валюті акаунту (наприклад: "500" для 500 грн/день)'
-      ),
-      targetLocation: z.string().optional().describe(
-        'Географія таргетингу (наприклад: "Київ", "Вся Україна", "Львів та область")'
-      ),
-      language: z.string().optional().describe(
-        'Мова оголошень: "uk", "ru", "en". За замовчуванням "uk".'
-      ),
+      mode: modeSchema,
+      businessName: z.string().describe('Назва бізнесу'),
+      product: z.string().describe('Продукт/послуга'),
+      websiteUrl: z.string().url().describe('⚠️ РЕАЛЬНИЙ URL сайту клієнта'),
+      dailyBudget: z.string().describe('Денний бюджет у валюті акаунту'),
+      targetLocation: z.string().optional().describe('Географія (напр. "Київ")'),
+      language: z.string().optional().describe('Мова: "uk", "ru", "en"'),
     },
-    async ({ businessName, product, websiteUrl, dailyBudget, targetLocation, language }) => {
-      const locationNote = targetLocation ? `\nГеографія: ${targetLocation}` : '';
+    async ({ mode, businessName, product, websiteUrl, dailyBudget, targetLocation, language }) => {
       const lang = language || 'uk';
+      const locationNote = targetLocation || 'не вказано';
 
-      const instructions = `Ти — Senior PPC-спеціаліст. Створи ПОВНУ СТРУКТУРУ рекламної кампанії з нуля.
+      if (mode === 'preview') {
+        const preview: SkillPreview = {
+          title: '🚀 Створення Повної Кампанії',
+          summary: `Кампанія для "${businessName}" — ${product}. Бюджет: ${dailyBudget}/день. Сайт: ${websiteUrl}`,
+          skillName: 'skill_create_campaign_full',
+          estimatedTime: '5-8 хвилин',
+          params: { businessName, product, websiteUrl, dailyBudget, targetLocation: locationNote, language: lang },
+          steps: [
+            { title: 'Інформація акаунту', tools: ['get_account_info'], description: 'Валюта, часовий пояс' },
+            { title: 'Дослідження keywords', tools: ['generate_keyword_ideas'], description: 'Seed keywords → кластери' },
+            { title: 'Показ плану структури', tools: [], description: 'Кампанія → групи → keywords' },
+            { title: 'Підтвердження плану', tools: [], description: '⚡ Запит підтвердження' },
+            { title: 'Створення кампанії', tools: ['create_search_campaign'], description: `Бюджет ${dailyBudget}/день` },
+            { title: 'Створення груп + keywords', tools: ['create_ad_group', 'add_keywords'], description: '2-4 тематичні групи' },
+            { title: 'Створення RSA', tools: ['create_rsa_ad'], description: `finalUrl = ${websiteUrl}` },
+            { title: 'Мінус-слова', tools: ['add_negative_keywords'], description: 'Базові стоп-слова' },
+          ],
+        };
+        return previewResult(preview);
+      }
 
-📋 ДАНІ КЛІЄНТА:
+      return executeResult(`Ти — Senior PPC-спеціаліст. Створи ПОВНУ СТРУКТУРУ кампанії.
+
+📋 ДАНІ:
 - Бізнес: ${businessName}
-- Продукт/послуга: ${product}
+- Продукт: ${product}
 - Сайт: ${websiteUrl}
 - Бюджет: ${dailyBudget}/день
-- Мова: ${lang}${locationNote}
+- Мова: ${lang}
+${targetLocation ? `- Географія: ${targetLocation}` : ''}
 
-⚠️ КРИТИЧНО: URL сайту клієнта = "${websiteUrl}". ЗАВЖДИ використовуй ТІЛЬКИ цей URL для finalUrl оголошень!
+⚠️ URL = "${websiteUrl}" — ЗАВЖДИ використовуй ТІЛЬКИ цей URL!
 
-ОБОВ'ЯЗКОВИЙ АЛГОРИТМ:
+**КРОК 1:** Виклич get_account_info.
 
-**КРОК 1 — Інформація про акаунт:**
-Виклич get_account_info. Запиши валюту та часовий пояс.
+**КРОК 2:** Виклич generate_keyword_ideas для "${product}". Розбий на 2-4 кластери.
 
-**КРОК 2 — Дослідження ключових слів:**
-Виклич generate_keyword_ideas з seed keywords для "${product}".
-Розбий ідеї на 2-4 тематичні групи (кластери).
-
-**КРОК 3 — ПЛАН СТРУКТУРИ:**
-Покажи користувачу план:
-
-📊 **Структура кампанії:**
+**КРОК 3 — ПОКАЖИ ПЛАН:**
 | Елемент | Деталі |
 |---------|--------|
-| Назва кампанії | [запропонуй] |
+| Кампанія | [назва] |
 | Бюджет | ${dailyBudget}/день |
-| Стратегія ставок | [рекомендація з поясненням] |
-| Група 1 | [назва] → [5-10 keywords] |
-| Група 2 | [назва] → [5-10 keywords] |
-| ... | ... |
+| Стратегія | [рекомендація] |
+| Група 1 | [назва] → [keywords] |
+| Група 2 | [назва] → [keywords] |
 
-**КРОК 4 — ЗАПРОСИ ПІДТВЕРДЖЕННЯ ПЛАНУ:**
-"Підтверджуєте цю структуру? (так/ні/змінити)"
+**КРОК 4:** Запитай підтвердження плану.
 
-**КРОК 5 — Після підтвердження — СТВОРЕННЯ:**
-5.1. Виклич create_search_campaign з назвою та бюджетом ${dailyBudget}.
+**КРОК 5 — Після підтвердження:**
+5.1. create_search_campaign з бюджетом ${dailyBudget}.
 5.2. Для кожної групи:
-  - Виклич create_ad_group з campaignId
-  - Виклич add_keywords з ключовими словами
-  - Виклич create_rsa_ad з headlines, descriptions та finalUrl="${websiteUrl}" (або відповідна підсторінка)
-
-⚠️ ВАЖЛИВО: при create_rsa_ad ЗАВЖДИ використовуй "${websiteUrl}" або його підсторінки як finalUrl!
-
-5.3. Додай базові мінус-слова (add_negative_keywords): "безкоштовно", "своїми руками", "відгуки", "реферат", "скачати".
+  - create_ad_group
+  - add_keywords
+  - create_rsa_ad з finalUrl="${websiteUrl}"
+5.3. add_negative_keywords: "безкоштовно", "своїми руками", "відгуки", "реферат", "скачати"
 
 **КРОК 6 — ФІНАЛЬНИЙ ЗВІТ:**
-Покажи що створено:
-- Кампанія: [назва] (ID: [id]) — статус PAUSED
-- Група 1: [назва] — [N] keywords, [N] ads
-- Група 2: [назва] — [N] keywords, [N] ads
-- Мінус-слова: [N] додано
-
-Запитай: "Активувати кампанію? (update_campaign_status → ENABLED)"`;
-
-      return {
-        content: [{ type: 'text', text: instructions }],
-      };
+- Кампанія: [назва] (ID) — статус PAUSED
+- Групи: ...
+- Запитай: "Активувати кампанію?"`);
     }
   );
 }
