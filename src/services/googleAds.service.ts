@@ -844,11 +844,33 @@ export class GoogleAdsService {
       console.log(`✅ Знайдено ${results.length} ідей ключових слів.`);
       return results;
     } catch (error: any) {
-      // API Limit Check
-      if (error && typeof error === 'object' && error.message?.includes('explorer access')) {
-        console.error('❌ ПОМИЛКА ДОСТУПУ: Інструмент Keyword Planner недоступний для Developer Token з рівнем "Explorer Access". Потрібен "Basic" або "Standard" доступ.');
-        throw new Error('Твій Developer Token має лише "Explorer Access", який не дозволяє використовувати Keyword Planner API. Для його роботи потрібно подати заявку на "Basic Access" у Google Ads API Center.');
+      const safeMessage = error instanceof Error ? error.message : '';
+      const serializedError = (() => {
+        try {
+          return JSON.stringify(error);
+        } catch {
+          return '';
+        }
+      })();
+      const errorText = `${safeMessage} ${serializedError}`.toLowerCase();
+
+      // Keyword Planner API недоступний на Explorer Access / неапрувнутому токені.
+      // Повертаємо ЧЕСНУ помилку з кроками, без fake/fallback даних.
+      if (
+        errorText.includes('explorer access')
+        || errorText.includes('developer_token_not_approved')
+        || errorText.includes('not allowed for use with explorer access')
+      ) {
+        throw new Error(
+          `Keyword Planner API недоступний для поточного Developer Token (Explorer/Test access). Метод generate_keyword_ideas вимагає Basic або Standard access.
+
+Що зробити:
+1) У Google Ads API Center подайте заявку на Basic/Standard access.
+2) У заявці/permissions увімкніть "Keyword research and suggestions" (KeywordPlanIdeaService).
+3) Після approve зачекайте поширення змін (зазвичай до 24 год), перезапустіть MCP сервер і повторіть запит.`
+        );
       }
+
       this.handleApiError('generateKeywordIdeas', error);
       throw error;
     }

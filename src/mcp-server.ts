@@ -1024,10 +1024,25 @@ server.tool(
     ),
   },
   async ({ keywords, languageId, geoTargetId }) => {
-    const result = await adsService.generateKeywordIdeas({ keywords, languageId, geoTargetId });
-    return {
-      content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-    };
+    try {
+      const result = await adsService.generateKeywordIdeas({ keywords, languageId, geoTargetId });
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Невідома помилка при generate_keyword_ideas.';
+      return {
+        content: [{
+          type: 'text',
+          text: `❌ generate_keyword_ideas не спрацював.
+
+Причина:
+${message}
+
+Важливо: тул не повертає фейкові/випадкові keyword ideas.`
+        }],
+      };
+    }
   }
 );
 
