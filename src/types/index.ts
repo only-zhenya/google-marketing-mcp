@@ -363,3 +363,173 @@ export interface IGenerateKeywordIdeasParams {
   /** Опціонально: Географічний ID (наприклад, 2804 для України) */
   geoTargetId?: number;
 }
+
+// ─────────────────────────────────────────────
+// Інформація про акаунт (Account Info)
+// ─────────────────────────────────────────────
+
+/** Загальна інформація про Google Ads акаунт */
+export interface IAccountInfo {
+  /** ID акаунту (10 цифр без дефісів) */
+  customerId: string;
+  /** Описова назва акаунту */
+  descriptiveName: string;
+  /** Код валюти (наприклад UAH, USD, EUR) */
+  currencyCode: string;
+  /** Часовий пояс (наприклад Europe/Kyiv) */
+  timeZone: string;
+  /** Чи увімкнено автоматичне тегування URL */
+  autoTaggingEnabled: boolean;
+  /** Шаблон URL для відстеження */
+  trackingUrlTemplate?: string;
+}
+
+// ─────────────────────────────────────────────
+// Створення кампанії (Campaign Creation)
+// ─────────────────────────────────────────────
+
+/** Параметри створення пошукової кампанії */
+export interface ICreateCampaignParams {
+  /** Назва кампанії */
+  name: string;
+  /** Денний бюджет у звичайних одиницях валюти */
+  dailyBudget: number;
+  /** Стратегія ставок */
+  biddingStrategy: 'MANUAL_CPC' | 'MAXIMIZE_CLICKS' | 'MAXIMIZE_CONVERSIONS' | 'TARGET_CPA';
+  /** Цільовий CPA (тільки для TARGET_CPA) */
+  targetCpa?: number;
+  /** Дата початку (YYYY-MM-DD) */
+  startDate?: string;
+  /** Дата закінчення (YYYY-MM-DD) */
+  endDate?: string;
+  /** Налаштування мережі */
+  networkSettings?: {
+    targetGoogleSearch: boolean;
+    targetSearchNetwork: boolean;
+    targetContentNetwork: boolean;
+  };
+}
+
+/** Результат створення кампанії */
+export interface ICreateCampaignResult {
+  campaignId: string;
+  budgetResourceName: string;
+  campaignResourceName: string;
+}
+
+// ─────────────────────────────────────────────
+// Географічний звіт
+// ─────────────────────────────────────────────
+
+export interface IGeographicReportRow {
+  campaignId: number | string;
+  campaignName: string;
+  countryName: string;
+  regionName: string;
+  metrics: {
+    clicks: number;
+    impressions: number;
+    cost: number;
+    conversions: number;
+    ctr: number;
+  };
+}
+
+// ─────────────────────────────────────────────
+// Звіт по девайсах
+// ─────────────────────────────────────────────
+
+export interface IDeviceReportRow {
+  campaignId: number | string;
+  campaignName: string;
+  device: string;
+  metrics: {
+    clicks: number;
+    impressions: number;
+    cost: number;
+    conversions: number;
+    ctr: number;
+    averageCpc: number;
+  };
+}
+
+// ─────────────────────────────────────────────
+// Звіт по годинах дня
+// ─────────────────────────────────────────────
+
+export interface IHourOfDayReportRow {
+  hour: number;
+  campaignId: number | string;
+  campaignName: string;
+  metrics: {
+    clicks: number;
+    impressions: number;
+    cost: number;
+    conversions: number;
+    ctr: number;
+  };
+}
+
+// ─────────────────────────────────────────────
+// Звіт по демографії
+// ─────────────────────────────────────────────
+
+export interface IAgeGenderReportRow {
+  campaignId: number | string;
+  campaignName: string;
+  ageRange: string;
+  gender: string;
+  metrics: {
+    clicks: number;
+    impressions: number;
+    cost: number;
+    conversions: number;
+    ctr: number;
+  };
+}
+
+// ─────────────────────────────────────────────
+// Структура кампанії (ієрархія)
+// ─────────────────────────────────────────────
+
+export interface ICampaignStructure {
+  campaignId: number | string;
+  campaignName: string;
+  status: string;
+  budget: number;
+  adGroups: {
+    id: number | string;
+    name: string;
+    status: string;
+    cpcBid: number;
+    keywordsCount: number;
+    adsCount: number;
+  }[];
+}
+
+// ─────────────────────────────────────────────
+// Утилізація бюджету
+// ─────────────────────────────────────────────
+
+export interface IBudgetUtilization {
+  campaignId: number | string;
+  campaignName: string;
+  status: string;
+  dailyBudget: number;
+  avgDailySpend: number;
+  utilizationPercent: number;
+  isLimited: boolean;
+}
+
+// ─────────────────────────────────────────────
+// Конверсійні дії
+// ─────────────────────────────────────────────
+
+export interface IConversionAction {
+  id: number | string;
+  name: string;
+  category: string;
+  type: string;
+  status: string;
+  countingType: string;
+}
